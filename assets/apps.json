@@ -1,0 +1,11 @@
+[
+  {
+    "id": "stepmaster",
+    "name": "StepMaster",
+    "description": "Flow diagram editor with voice control",
+    "projectPath": "projekty/FactoryMap",
+    "port": 5173,
+    "devCommand": "npm run dev",
+    "voicePortalMode": "mindmapa"
+  }
+]

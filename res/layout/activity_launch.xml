@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_horizontal"
+    android:background="@color/bg_primary"
+    android:padding="32dp">
+
+    <TextView
+        android:id="@+id/launch_app_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="24sp"
+        android:textColor="@color/text_primary"
+        android:textStyle="bold"
+        android:paddingBottom="32dp" />
+
+    <!-- Step 1: Dev Server -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingBottom="16dp">
+
+        <View
+            android:id="@+id/step1_dot"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:background="@drawable/status_dot"
+            android:backgroundTint="@color/status_pending" />
+
+        <TextView
+            android:id="@+id/step1_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/starting_dev_server"
+            android:textSize="16sp"
+            android:textColor="@color/text_secondary"
+            android:paddingStart="16dp" />
+    </LinearLayout>
+
+    <!-- Step 2: Proxy -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingBottom="16dp">
+
+        <View
+            android:id="@+id/step2_dot"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:background="@drawable/status_dot"
+            android:backgroundTint="@color/text_hint" />
+
+        <TextView
+            android:id="@+id/step2_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/starting_proxy"
+            android:textSize="16sp"
+            android:textColor="@color/text_hint"
+            android:paddingStart="16dp" />
+    </LinearLayout>
+
+    <!-- Step 3: Ready -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingBottom="32dp">
+
+        <View
+            android:id="@+id/step3_dot"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:background="@drawable/status_dot"
+            android:backgroundTint="@color/text_hint" />
+
+        <TextView
+            android:id="@+id/step3_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/waiting_servers"
+            android:textSize="16sp"
+            android:textColor="@color/text_hint"
+            android:paddingStart="16dp" />
+    </LinearLayout>
+
+    <ProgressBar
+        android:id="@+id/progress_bar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:indeterminateTint="@color/accent" />
+
+    <!-- Live log -->
+    <ScrollView
+        android:id="@+id/log_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:paddingTop="12dp"
+        android:fillViewport="false">
+
+        <TextView
+            android:id="@+id/log_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="11sp"
+            android:textColor="@color/text_hint"
+            android:fontFamily="monospace"
+            android:lineSpacingExtra="2dp" />
+    </ScrollView>
+
+    <!-- Error state -->
+    <TextView
+        android:id="@+id/error_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="14sp"
+        android:textColor="@color/status_error"
+        android:gravity="center"
+        android:visibility="gone"
+        android:paddingTop="16dp" />
+
+    <LinearLayout
+        android:id="@+id/error_buttons"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:visibility="gone"
+        android:paddingTop="16dp">
+
+        <Button
+            android:id="@+id/retry_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/retry"
+            android:textColor="@color/text_primary"
+            android:backgroundTint="@color/accent" />
+
+        <Button
+            android:id="@+id/cancel_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/cancel"
+            android:textColor="@color/text_secondary"
+            android:backgroundTint="@color/bg_card"
+            android:layout_marginStart="12dp" />
+
+        <Button
+            android:id="@+id/copy_log_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Copy Log"
+            android:textColor="@color/text_secondary"
+            android:backgroundTint="@color/bg_card"
+            android:layout_marginStart="12dp" />
+    </LinearLayout>
+
+</LinearLayout>

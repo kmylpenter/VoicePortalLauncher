@@ -1,0 +1,25 @@
+# Build outputs
+build/
+*.apk
+*.dex
+*.class
+
+# Keystore
+debug.keystore
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Thoughts (local working notes)
+thoughts/
+
+# Local tools
+.claude/
+.tldr/
+.tldrignore
+
+# OS
+.DS_Store
+Thumbs.db

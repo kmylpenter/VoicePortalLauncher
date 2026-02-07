@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Name"
+            android:textSize="12sp"
+            android:textColor="@color/text_hint" />
+
+        <EditText
+            android:id="@+id/edit_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="My App"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_hint"
+            android:layout_marginBottom="12dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Description"
+            android:textSize="12sp"
+            android:textColor="@color/text_hint" />
+
+        <EditText
+            android:id="@+id/edit_description"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="What this app does"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_hint"
+            android:layout_marginBottom="12dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Project path (relative to ~/)"
+            android:textSize="12sp"
+            android:textColor="@color/text_hint" />
+
+        <EditText
+            android:id="@+id/edit_project_path"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="projekty/MyApp"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_hint"
+            android:inputType="textUri"
+            android:layout_marginBottom="12dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Port"
+            android:textSize="12sp"
+            android:textColor="@color/text_hint" />
+
+        <EditText
+            android:id="@+id/edit_port"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="5173"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_hint"
+            android:inputType="number"
+            android:layout_marginBottom="12dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Dev command"
+            android:textSize="12sp"
+            android:textColor="@color/text_hint" />
+
+        <EditText
+            android:id="@+id/edit_dev_command"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="npm run dev"
+            android:text="npm run dev"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_hint"
+            android:layout_marginBottom="12dp" />
+
+        <CheckBox
+            android:id="@+id/edit_use_voiceportal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Use VoicePortal"
+            android:textColor="@color/text_primary"
+            android:checked="true"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="VoicePortal mode"
+            android:textSize="12sp"
+            android:textColor="@color/text_hint" />
+
+        <EditText
+            android:id="@+id/edit_voice_mode"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="default"
+            android:text="default"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_hint"
+            android:layout_marginBottom="12dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Auto-stop after idle (minutes, 0 = never)"
+            android:textSize="12sp"
+            android:textColor="@color/text_hint" />
+
+        <EditText
+            android:id="@+id/edit_idle_timeout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="0"
+            android:text="0"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_hint"
+            android:inputType="number" />
+
+    </LinearLayout>
+
+</ScrollView>

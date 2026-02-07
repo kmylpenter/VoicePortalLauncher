@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">VoicePortal</string>
+    <string name="no_apps">No apps configured</string>
+    <string name="starting_dev_server">Starting dev server\u2026</string>
+    <string name="starting_proxy">Starting VoicePortal proxy\u2026</string>
+    <string name="waiting_servers">Waiting for servers\u2026</string>
+    <string name="servers_ready">Servers ready!</string>
+    <string name="timeout_error">Servers did not respond in time</string>
+    <string name="retry">Retry</string>
+    <string name="cancel">Cancel</string>
+    <string name="port_label">Port: %d</string>
+    <string name="termux_not_found">Termux is not installed. Please install Termux from F-Droid.</string>
+</resources>
