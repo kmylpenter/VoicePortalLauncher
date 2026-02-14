@@ -39,6 +39,7 @@
             android:name=".WebViewActivity"
             android:exported="false"
             android:label="VoicePortal"
+            android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|keyboardHidden" />
 
         <activity

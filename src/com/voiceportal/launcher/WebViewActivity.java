@@ -2,66 +2,92 @@ package com.voiceportal.launcher;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.media.AudioManager;
-import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
 import android.webkit.ConsoleMessage;
 import android.webkit.PermissionRequest;
-import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.RenderProcessGoneDetail;
+import android.widget.FrameLayout;
+import android.widget.HorizontalScrollView;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+
+import java.util.ArrayList;
 
 public class WebViewActivity extends Activity {
     private static final String TAG = "VPWebView";
     private static final int MIC_PERMISSION_CODE = 1;
-    private WebView webView;
-    private String pendingUrl;
+
+    private FrameLayout webviewContainer;
+    private HorizontalScrollView tabStrip;
+    private LinearLayout tabStripContent;
+
+    private ArrayList<TabInfo> tabs;
+    private int activeTabIndex;
     private PermissionRequest pendingPermissionRequest;
+    private boolean micPermissionGranted;
+
+    /** Tab data model */
+    private static class TabInfo {
+        final String id;
+        final String name;
+        final int port;
+        final String url;
+        final WebView webView;
+
+        TabInfo(String id, String name, int port, String url, WebView webView) {
+            this.id = id;
+            this.name = name;
+            this.port = port;
+            this.url = url;
+            this.webView = webView;
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_webview);
 
-        // Enable WebView debugging
         WebView.setWebContentsDebuggingEnabled(true);
-
-        // Pre-initialize audio subsystem
         initAudioManager();
 
-        webView = findViewById(R.id.webview);
-        setupWebView();
+        webviewContainer = findViewById(R.id.webview_container);
+        tabStrip = findViewById(R.id.tab_strip);
+        tabStripContent = findViewById(R.id.tab_strip_content);
 
-        pendingUrl = getIntent().getStringExtra("url");
+        tabs = new ArrayList<TabInfo>();
+        activeTabIndex = -1;
 
-        // Always request mic permission first
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
-                != PackageManager.PERMISSION_GRANTED) {
+        micPermissionGranted = checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                == PackageManager.PERMISSION_GRANTED;
+
+        if (!micPermissionGranted) {
             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, MIC_PERMISSION_CODE);
         } else {
-            Log.d(TAG, "Mic permission already granted");
-            loadPage();
+            addTabFromIntent(getIntent());
         }
     }
 
-    /** Pre-initialize Android AudioManager to warm up audio subsystem */
-    private void initAudioManager() {
-        try {
-            AudioManager audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
-            if (audioManager != null) {
-                // Request audio focus briefly to initialize audio routing
-                int mode = audioManager.getMode();
-                Log.d(TAG, "AudioManager mode: " + mode);
-                // Just accessing it warms up the audio subsystem
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "AudioManager init failed: " + e.getMessage());
-        }
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        addTabFromIntent(intent);
     }
 
     @Override
@@ -70,33 +96,186 @@ public class WebViewActivity extends Activity {
         if (requestCode == MIC_PERMISSION_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 Log.d(TAG, "Mic permission GRANTED by user");
-                // Grant any pending WebView permission request
+                micPermissionGranted = true;
                 if (pendingPermissionRequest != null) {
-                    Log.d(TAG, "Granting pending WebView permission request");
                     pendingPermissionRequest.grant(pendingPermissionRequest.getResources());
                     pendingPermissionRequest = null;
                 }
             } else {
                 Log.d(TAG, "Mic permission DENIED by user");
-                // Deny any pending WebView permission request
+                micPermissionGranted = false;
                 if (pendingPermissionRequest != null) {
                     pendingPermissionRequest.deny();
                     pendingPermissionRequest = null;
                 }
             }
-        }
-        loadPage();
-    }
-
-    private void loadPage() {
-        if (pendingUrl != null) {
-            Log.d(TAG, "Loading URL: " + pendingUrl);
-            webView.loadUrl(pendingUrl);
-            pendingUrl = null;
+            if (tabs.isEmpty()) {
+                addTabFromIntent(getIntent());
+            }
         }
     }
 
-    private void setupWebView() {
+    /** Pre-initialize Android AudioManager to warm up audio subsystem */
+    private void initAudioManager() {
+        try {
+            AudioManager audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
+            if (audioManager != null) {
+                int mode = audioManager.getMode();
+                Log.d(TAG, "AudioManager mode: " + mode);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "AudioManager init failed: " + e.getMessage());
+        }
+    }
+
+    private void addTabFromIntent(Intent intent) {
+        String url = intent.getStringExtra("url");
+        if (url == null) return;
+        String name = intent.getStringExtra("app_name");
+        int port = intent.getIntExtra("app_port", 0);
+        if (name == null || name.isEmpty()) {
+            name = "Tab " + (tabs.size() + 1);
+        }
+        addTab(name, url, port);
+    }
+
+    private void addTab(String name, String url, int port) {
+        // Check if a tab with this URL already exists - switch to it instead
+        for (int i = 0; i < tabs.size(); i++) {
+            if (tabs.get(i).url.equals(url)) {
+                switchToTab(i);
+                return;
+            }
+        }
+
+        WebView webView = new WebView(this);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT);
+        webView.setLayoutParams(lp);
+        setupWebView(webView);
+        webviewContainer.addView(webView);
+
+        String id = "tab_" + System.currentTimeMillis();
+        TabInfo tab = new TabInfo(id, name, port, url, webView);
+        tabs.add(tab);
+
+        int newIndex = tabs.size() - 1;
+        switchToTab(newIndex);
+
+        Log.d(TAG, "Loading URL in tab '" + name + "': " + url);
+        webView.loadUrl(url);
+
+        updateTabStrip();
+    }
+
+    private void switchToTab(int index) {
+        if (index < 0 || index >= tabs.size()) return;
+
+        if (activeTabIndex >= 0 && activeTabIndex < tabs.size()) {
+            tabs.get(activeTabIndex).webView.setVisibility(View.GONE);
+        }
+
+        activeTabIndex = index;
+        tabs.get(activeTabIndex).webView.setVisibility(View.VISIBLE);
+
+        updateTabStrip();
+    }
+
+    private void closeTab(int index) {
+        if (index < 0 || index >= tabs.size()) return;
+
+        TabInfo tab = tabs.get(index);
+        Log.d(TAG, "Closing tab: " + tab.name);
+
+        webviewContainer.removeView(tab.webView);
+        tab.webView.destroy();
+        tabs.remove(index);
+
+        if (tabs.isEmpty()) {
+            finish();
+            return;
+        }
+
+        if (index == activeTabIndex) {
+            int newIndex = index >= tabs.size() ? tabs.size() - 1 : index;
+            activeTabIndex = -1;
+            switchToTab(newIndex);
+        } else if (index < activeTabIndex) {
+            activeTabIndex--;
+        }
+
+        updateTabStrip();
+    }
+
+    private void updateTabStrip() {
+        tabStripContent.removeAllViews();
+        LayoutInflater inflater = LayoutInflater.from(this);
+
+        for (int i = 0; i < tabs.size(); i++) {
+            TabInfo tab = tabs.get(i);
+            View chipView = inflater.inflate(R.layout.item_tab_chip, tabStripContent, false);
+
+            TextView nameView = chipView.findViewById(R.id.tab_name);
+            TextView portBadge = chipView.findViewById(R.id.tab_port_badge);
+            View indicator = chipView.findViewById(R.id.tab_active_indicator);
+            TextView closeBtn = chipView.findViewById(R.id.tab_close_btn);
+
+            nameView.setText(tab.name);
+            if (tab.port > 0) {
+                portBadge.setText(String.valueOf(tab.port));
+                portBadge.setVisibility(View.VISIBLE);
+            } else {
+                portBadge.setVisibility(View.GONE);
+            }
+
+            boolean isActive = (i == activeTabIndex);
+            if (isActive) {
+                chipView.setBackgroundResource(R.drawable.tab_chip_active_bg);
+                indicator.setVisibility(View.VISIBLE);
+                closeBtn.setVisibility(View.VISIBLE);
+                closeBtn.setOnClickListener(new TabCloseClickListener(i));
+            } else {
+                chipView.setBackgroundResource(R.drawable.tab_chip_bg);
+                indicator.setVisibility(View.GONE);
+                closeBtn.setVisibility(View.GONE);
+            }
+
+            chipView.setOnClickListener(new TabClickListener(i));
+            chipView.setOnLongClickListener(new TabLongClickListener(i));
+
+            tabStripContent.addView(chipView);
+        }
+
+        // Add "+" button at the end
+        TextView addBtn = new TextView(this);
+        addBtn.setText("+");
+        addBtn.setTextColor(getColor(R.color.accent_light));
+        addBtn.setTextSize(20);
+        addBtn.setGravity(Gravity.CENTER);
+        addBtn.setTypeface(null, Typeface.BOLD);
+
+        LinearLayout.LayoutParams addLp = new LinearLayout.LayoutParams(dp(36), dp(34));
+        addLp.setMargins(dp(4), dp(4), dp(4), dp(4));
+        addBtn.setLayoutParams(addLp);
+        addBtn.setBackgroundResource(R.drawable.tab_chip_bg);
+        addBtn.setOnClickListener(new AddTabClickListener());
+
+        tabStripContent.addView(addBtn);
+    }
+
+    private void goToMainActivity() {
+        Intent homeIntent = new Intent(this, MainActivity.class);
+        homeIntent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+        startActivity(homeIntent);
+    }
+
+    private int dp(int value) {
+        float density = getResources().getDisplayMetrics().density;
+        return (int) (value * density + 0.5f);
+    }
+
+    private void setupWebView(WebView webView) {
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -106,7 +285,6 @@ public class WebViewActivity extends Activity {
         settings.setDatabaseEnabled(true);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
 
-        // Allow third-party cookies (needed for some auth flows)
         android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
 
         webView.setWebViewClient(new VPWebViewClient());
@@ -115,19 +293,65 @@ public class WebViewActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            super.onBackPressed();
+        if (activeTabIndex >= 0 && activeTabIndex < tabs.size()) {
+            WebView active = tabs.get(activeTabIndex).webView;
+            if (active.canGoBack()) {
+                active.goBack();
+                return;
+            }
+            if (tabs.size() > 1) {
+                closeTab(activeTabIndex);
+                return;
+            }
         }
+        // Don't finish - go back to MainActivity keeping tabs alive
+        goToMainActivity();
     }
 
     @Override
     protected void onDestroy() {
-        if (webView != null) {
-            webView.destroy();
+        for (TabInfo tab : tabs) {
+            tab.webView.destroy();
         }
+        tabs.clear();
         super.onDestroy();
+    }
+
+    // --- Named inner classes for d8 compatibility ---
+
+    private class TabClickListener implements View.OnClickListener {
+        private final int index;
+        TabClickListener(int index) { this.index = index; }
+        @Override
+        public void onClick(View v) {
+            switchToTab(index);
+        }
+    }
+
+    private class TabLongClickListener implements View.OnLongClickListener {
+        private final int index;
+        TabLongClickListener(int index) { this.index = index; }
+        @Override
+        public boolean onLongClick(View v) {
+            closeTab(index);
+            return true;
+        }
+    }
+
+    private class TabCloseClickListener implements View.OnClickListener {
+        private final int index;
+        TabCloseClickListener(int index) { this.index = index; }
+        @Override
+        public void onClick(View v) {
+            closeTab(index);
+        }
+    }
+
+    private class AddTabClickListener implements View.OnClickListener {
+        @Override
+        public void onClick(View v) {
+            goToMainActivity();
+        }
     }
 
     /** WebViewClient that pre-warms audio after page loads and handles renderer crashes */
@@ -137,10 +361,6 @@ public class WebViewActivity extends Activity {
             super.onPageFinished(view, url);
             Log.d(TAG, "Page loaded: " + url);
 
-            // Pre-warm audio capture: request getUserMedia once to initialize
-            // the WebView audio subsystem. This fixes "Could not start audio source"
-            // on some Android WebView versions where the first getUserMedia fails
-            // unless the audio pipeline has been initialized.
             view.evaluateJavascript(
                 "(function(){" +
                 "if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){" +
@@ -158,14 +378,31 @@ public class WebViewActivity extends Activity {
             Log.e(TAG, "Renderer process gone! crashed=" + detail.didCrash()
                 + " priority=" + detail.rendererPriorityAtExit());
 
-            // Destroy the dead WebView to free resources
-            if (webView != null) {
-                webView.destroy();
-                webView = null;
-            }
+            for (int i = 0; i < tabs.size(); i++) {
+                if (tabs.get(i).webView == view) {
+                    webviewContainer.removeView(view);
+                    view.destroy();
+                    String crashedUrl = tabs.get(i).url;
+                    String crashedName = tabs.get(i).name;
+                    int crashedPort = tabs.get(i).port;
+                    tabs.remove(i);
 
-            // Restart: recreate the activity to get a fresh WebView
-            recreate();
+                    if (tabs.isEmpty()) {
+                        activeTabIndex = -1;
+                        addTab(crashedName, crashedUrl, crashedPort);
+                    } else {
+                        if (i == activeTabIndex) {
+                            int newIndex = i >= tabs.size() ? tabs.size() - 1 : i;
+                            activeTabIndex = -1;
+                            switchToTab(newIndex);
+                        } else if (i < activeTabIndex) {
+                            activeTabIndex--;
+                        }
+                        updateTabStrip();
+                    }
+                    break;
+                }
+            }
             return true;
         }
     }
@@ -175,8 +412,6 @@ public class WebViewActivity extends Activity {
         @Override
         public void onPermissionRequest(PermissionRequest request) {
             Log.d(TAG, "WebView permission request: " + java.util.Arrays.toString(request.getResources()));
-
-            // Must grant on UI thread for reliability across Android versions
             runOnUiThread(new GrantPermissionRunnable(request));
         }
 
@@ -218,7 +453,6 @@ public class WebViewActivity extends Activity {
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Error granting permission: " + e.getMessage());
-                // Try to grant anyway
                 try {
                     request.grant(request.getResources());
                 } catch (Exception e2) {

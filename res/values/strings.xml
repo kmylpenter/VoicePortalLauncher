@@ -11,4 +11,8 @@
     <string name="cancel">Cancel</string>
     <string name="port_label">Port: %d</string>
     <string name="termux_not_found">Termux is not installed. Please install Termux from F-Droid.</string>
+    <string name="tab_switcher_title">Open Tabs</string>
+    <string name="tab_switch">Switch</string>
+    <string name="tab_close">Close</string>
+    <string name="tab_active_label">(active)</string>
 </resources>

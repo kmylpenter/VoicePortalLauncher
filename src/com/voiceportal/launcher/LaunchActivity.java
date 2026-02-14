@@ -229,6 +229,8 @@ public class LaunchActivity extends Activity implements ServerLauncher.StatusCal
 
             Intent intent = new Intent(LaunchActivity.this, WebViewActivity.class);
             intent.putExtra("url", "http://127.0.0.1:" + port);
+            intent.putExtra("app_name", appName);
+            intent.putExtra("app_port", port);
             startActivity(intent);
             finish();
         }

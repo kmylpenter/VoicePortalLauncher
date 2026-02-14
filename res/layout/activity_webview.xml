@@ -1,13 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout
+<RelativeLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg_primary">
 
-    <WebView
-        android:id="@+id/webview"
+    <FrameLayout
+        android:id="@+id/webview_container"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        android:layout_above="@+id/tab_strip" />
 
-</FrameLayout>
+    <HorizontalScrollView
+        android:id="@+id/tab_strip"
+        android:layout_width="match_parent"
+        android:layout_height="42dp"
+        android:layout_alignParentBottom="true"
+        android:background="@color/bg_surface"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/tab_strip_content"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp" />
+
+    </HorizontalScrollView>
+
+</RelativeLayout>
