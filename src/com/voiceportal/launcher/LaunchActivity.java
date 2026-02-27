@@ -125,7 +125,8 @@ public class LaunchActivity extends Activity implements ServerLauncher.StatusCal
         logBuffer = new StringBuilder();
         resetUI();
         AppConfig config = new AppConfig(appId, appName, "", projectPath, port, devCommand, voiceMode, idleTimeoutMin);
-        launcher = new ServerLauncher(this, config);
+        boolean kiosk = SettingsActivity.getKioskMode(this);
+        launcher = new ServerLauncher(this, config, kiosk);
         launcher.launch(this);
     }
 

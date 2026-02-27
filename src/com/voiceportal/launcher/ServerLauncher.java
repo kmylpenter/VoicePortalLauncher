@@ -30,12 +30,18 @@ public class ServerLauncher {
 
     private final Context context;
     private final AppConfig app;
+    private final boolean kioskMode;
     private volatile boolean cancelled = false;
     private Thread idleWatchdog;
 
     public ServerLauncher(Context context, AppConfig app) {
+        this(context, app, false);
+    }
+
+    public ServerLauncher(Context context, AppConfig app, boolean kioskMode) {
         this.context = context;
         this.app = app;
+        this.kioskMode = kioskMode;
     }
 
     public void cancel() {
@@ -218,8 +224,9 @@ public class ServerLauncher {
                 callback.onDevServerStarting();
                 String fixShebangs = "termux-fix-shebang " + projectDir +
                     "/node_modules/.bin/* 2>/dev/null; ";
+                String kioskEnv = kioskMode ? "KIOSK_MODE=true " : "";
                 String devCmd = "cd " + projectDir + " && " + fixShebangs +
-                    app.devCommand + " >> " + logFile + " 2>&1";
+                    kioskEnv + app.devCommand + " >> " + logFile + " 2>&1";
                 callback.onLog("CMD: " + app.devCommand);
                 String devErr = TermuxCommandRunner.runInBackground(context, devCmd, projectDir);
                 if (devErr != null) {
