@@ -33,6 +33,7 @@ public class MainActivity extends Activity
         emptyView = findViewById(R.id.empty_view);
         findViewById(R.id.add_button).setOnClickListener(this);
         findViewById(R.id.monitor_button).setOnClickListener(this);
+        findViewById(R.id.settings_button).setOnClickListener(this);
 
         loadApps();
     }
@@ -49,6 +50,8 @@ public class MainActivity extends Activity
             showAppDialog(-1);
         } else if (v.getId() == R.id.monitor_button) {
             startActivity(new Intent(this, ServerMonitorActivity.class));
+        } else if (v.getId() == R.id.settings_button) {
+            startActivity(new Intent(this, SettingsActivity.class));
         }
     }
 

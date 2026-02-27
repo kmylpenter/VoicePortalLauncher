@@ -25,6 +25,9 @@ import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
+import android.view.WindowManager;
 
 import java.util.ArrayList;
 
@@ -40,6 +43,10 @@ public class WebViewActivity extends Activity {
     private int activeTabIndex;
     private PermissionRequest pendingPermissionRequest;
     private boolean micPermissionGranted;
+    private boolean desktopMode = false;
+    private boolean kioskMode = false;
+
+    private static final String UA_DESKTOP = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
     /** Tab data model */
     private static class TabInfo {
@@ -72,6 +79,18 @@ public class WebViewActivity extends Activity {
 
         tabs = new ArrayList<TabInfo>();
         activeTabIndex = -1;
+
+        // Apply settings
+        if (SettingsActivity.getHideTabBar(this)) {
+            tabStrip.setVisibility(View.GONE);
+        }
+
+        kioskMode = SettingsActivity.getKioskMode(this);
+        if (kioskMode) {
+            startLockTask();
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            enterImmersiveMode();
+        }
 
         micPermissionGranted = checkSelfPermission(Manifest.permission.RECORD_AUDIO)
                 == PackageManager.PERMISSION_GRANTED;
@@ -262,6 +281,38 @@ public class WebViewActivity extends Activity {
         addBtn.setOnClickListener(new AddTabClickListener());
 
         tabStripContent.addView(addBtn);
+
+        // Desktop/mobile toggle button
+        TextView modeBtn = new TextView(this);
+        modeBtn.setText(desktopMode ? "\uD83D\uDDA5" : "\uD83D\uDCF1");
+        modeBtn.setTextSize(16);
+        modeBtn.setGravity(Gravity.CENTER);
+
+        LinearLayout.LayoutParams modeLp = new LinearLayout.LayoutParams(dp(36), dp(34));
+        modeLp.setMargins(dp(2), dp(4), dp(4), dp(4));
+        modeBtn.setLayoutParams(modeLp);
+        modeBtn.setBackgroundResource(desktopMode
+                ? R.drawable.tab_chip_active_bg : R.drawable.tab_chip_bg);
+        modeBtn.setOnClickListener(new ToggleDesktopClickListener());
+
+        tabStripContent.addView(modeBtn);
+    }
+
+    private void enterImmersiveMode() {
+        WindowInsetsController controller = getWindow().getInsetsController();
+        if (controller != null) {
+            controller.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
+            controller.setSystemBarsBehavior(
+                    WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        }
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus && kioskMode) {
+            enterImmersiveMode();
+        }
     }
 
     private void goToMainActivity() {
@@ -287,12 +338,25 @@ public class WebViewActivity extends Activity {
 
         android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
 
+        // Apply current desktop/mobile mode
+        applyViewportMode(webView);
+
         webView.setWebViewClient(new VPWebViewClient());
         webView.setWebChromeClient(new VPWebChromeClient());
     }
 
     @Override
     public void onBackPressed() {
+        if (kioskMode) {
+            // In kiosk mode, only allow in-page back navigation
+            if (activeTabIndex >= 0 && activeTabIndex < tabs.size()) {
+                WebView active = tabs.get(activeTabIndex).webView;
+                if (active.canGoBack()) {
+                    active.goBack();
+                }
+            }
+            return;
+        }
         if (activeTabIndex >= 0 && activeTabIndex < tabs.size()) {
             WebView active = tabs.get(activeTabIndex).webView;
             if (active.canGoBack()) {
@@ -354,6 +418,56 @@ public class WebViewActivity extends Activity {
         }
     }
 
+    private class ToggleDesktopClickListener implements View.OnClickListener {
+        @Override
+        public void onClick(View v) {
+            toggleDesktopMode();
+        }
+    }
+
+    private void toggleDesktopMode() {
+        desktopMode = !desktopMode;
+        Log.d(TAG, "Desktop mode: " + desktopMode);
+
+        // Apply WebView settings to all tabs
+        for (TabInfo tab : tabs) {
+            applyViewportMode(tab.webView);
+        }
+
+        // Inject viewport override on active tab immediately, then reload
+        if (activeTabIndex >= 0 && activeTabIndex < tabs.size()) {
+            WebView active = tabs.get(activeTabIndex).webView;
+            if (desktopMode) {
+                active.evaluateJavascript(
+                    "(function(){var m=document.querySelector('meta[name=viewport]');" +
+                    "if(m)m.setAttribute('content','width=1280')})()", null);
+            } else {
+                active.evaluateJavascript(
+                    "(function(){var m=document.querySelector('meta[name=viewport]');" +
+                    "if(m)m.setAttribute('content','width=device-width,initial-scale=1.0,user-scalable=no')})()", null);
+            }
+            active.reload();
+        }
+
+        updateTabStrip();
+    }
+
+    private void applyViewportMode(WebView webView) {
+        WebSettings settings = webView.getSettings();
+        if (desktopMode) {
+            settings.setUserAgentString(UA_DESKTOP);
+            settings.setUseWideViewPort(true);
+            settings.setLoadWithOverviewMode(true);
+            settings.setSupportZoom(true);
+            settings.setBuiltInZoomControls(true);
+            settings.setDisplayZoomControls(false);
+        } else {
+            settings.setUserAgentString(null); // reset to default
+            settings.setUseWideViewPort(false);
+            settings.setLoadWithOverviewMode(false);
+        }
+    }
+
     /** WebViewClient that pre-warms audio after page loads and handles renderer crashes */
     private class VPWebViewClient extends WebViewClient {
         @Override
@@ -361,6 +475,21 @@ public class WebViewActivity extends Activity {
             super.onPageFinished(view, url);
             Log.d(TAG, "Page loaded: " + url);
 
+            // Override viewport meta tag for desktop mode
+            if (desktopMode) {
+                view.evaluateJavascript(
+                    "(function(){" +
+                    "var m=document.querySelector('meta[name=viewport]');" +
+                    "if(m){m.setAttribute('content','width=1280')}" +
+                    "else{m=document.createElement('meta');m.name='viewport';" +
+                    "m.content='width=1280';document.head.appendChild(m)}" +
+                    "console.log('[VP] Desktop viewport applied')" +
+                    "})()",
+                    null
+                );
+            }
+
+            // Pre-warm audio subsystem
             view.evaluateJavascript(
                 "(function(){" +
                 "if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){" +

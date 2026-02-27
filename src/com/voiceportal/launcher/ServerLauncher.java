@@ -66,11 +66,12 @@ public class ServerLauncher {
 
     /** Kill dev server, proxy, and log reader via Termux. */
     public static void stopServers(Context context, int port) {
-        // Kill dev server: try pkill patterns then fuser as fallback
+        // Kill dev server: pkill patterns + port in cmdline variants
         String killDev = "pkill -f ' " + port + "$' 2>/dev/null; " +
             "pkill -f ' " + port + " ' 2>/dev/null; " +
             "pkill -f ':" + port + "' 2>/dev/null; " +
-            "fuser -k " + port + "/tcp 2>/dev/null; " +
+            "pkill -f '=" + port + "' 2>/dev/null; " +
+            "pkill -f -- '--port=" + port + "' 2>/dev/null; " +
             "echo 'Dev server on port " + port + " killed'";
         TermuxCommandRunner.runInBackground(context, killDev, null);
 

@@ -15,4 +15,10 @@
     <string name="tab_switch">Switch</string>
     <string name="tab_close">Close</string>
     <string name="tab_active_label">(active)</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="setting_hide_tab_bar">Hide tab bar</string>
+    <string name="setting_hide_tab_bar_desc">Hide the bottom tab strip in WebView. Useful when running a single app on a dedicated device.</string>
+    <string name="setting_kiosk_mode">Kiosk mode (screen lock)</string>
+    <string name="setting_kiosk_mode_desc">Lock the screen to the app after launch. The only way to exit is to restart the device. Use for dedicated kiosk/tablet deployments.</string>
 </resources>

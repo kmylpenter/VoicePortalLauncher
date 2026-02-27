@@ -366,26 +366,141 @@ public class ServerMonitorActivity extends Activity implements View.OnClickListe
 
         @Override
         public void onClick(View v) {
-            // Build kill command that tries multiple strategies:
-            // 1. pkill -f with port in cmdline (matches "server.py 8085", "--port 8085", ":8085")
-            // 2. pkill -f with project path (for configured apps)
-            // 3. fuser -k as fallback
-            // fuser/lsof often fail on Android due to /proc/net/tcp restrictions,
-            // so pkill -f with port patterns is the primary approach.
+            // Kill strategy overview:
+            // /proc/net/tcp is permission-denied on Android, so fuser/lsof/ss don't work.
+            // pkill -f only works if the port number appears in the process cmdline.
+            // Many servers (node server.js, npm run dev) read port from config, NOT cmdline.
+            //
+            // Reliable strategy: use a Python one-liner to find which PID holds the
+            // listening socket by scanning /proc/*/fd for socket inodes that match
+            // the port in /proc/<our_pid>/net/tcp6. Then kill the entire process group.
+            // Fallback: pkill patterns + fuser.
+            // Kill strategy for Termux/Android:
+            // - /proc/net/tcp is permission-denied → fuser/lsof/ss/netstat don't work
+            // - /proc/*/fd/ IS readable (same UID in Termux)
+            // - /proc/*/cmdline IS readable
+            //
+            // Approach: multi-strategy Python script that tries:
+            // 1. Find processes with socket fds whose cmdline matches port/path
+            // 2. Find bash wrappers (from TermuxCommandRunner or Claude) and kill trees
+            // 3. Kill each candidate tree, check if port freed, stop early
+            // 4. Fallback: pkill patterns
             StringBuilder cmd = new StringBuilder();
             if (isProxy) {
                 cmd.append("pkill -f 'node.*proxy/server.js'; ");
                 cmd.append("pkill -f voiceportal-daemon; ");
             } else {
-                // Match port number in various cmdline positions
+                String pyScript = "import os,signal,socket,sys,time\n"
+                    + "port=int(sys.argv[1])\n"
+                    + "path=sys.argv[2] if len(sys.argv)>2 else ''\n"
+                    + "my_pid=os.getpid()\n"
+                    + "my_ppid=os.getppid()\n"
+                    + "def children(pp):\n"
+                    + " r=[]\n"
+                    + " for d in os.listdir('/proc'):\n"
+                    + "  if not d.isdigit():continue\n"
+                    + "  try:\n"
+                    + "   f=open(f'/proc/{d}/status')\n"
+                    + "   for l in f:\n"
+                    + "    if l.startswith('PPid:'):\n"
+                    + "     if int(l.split()[1])==pp:r.append(int(d))\n"
+                    + "     break\n"
+                    + "   f.close()\n"
+                    + "  except:pass\n"
+                    + " return r\n"
+                    + "def tree(pid):\n"
+                    + " t=[pid]\n"
+                    + " for c in children(pid):t.extend(tree(c))\n"
+                    + " return t\n"
+                    + "def kill_tree(pids):\n"
+                    + " for p in reversed(pids):\n"
+                    + "  if p==my_pid or p==my_ppid:continue\n"
+                    + "  try:os.kill(p,signal.SIGTERM)\n"
+                    + "  except:pass\n"
+                    + "def port_free(pt):\n"
+                    + " s=socket.socket()\n"
+                    + " s.settimeout(0.5)\n"
+                    + " try:s.connect(('127.0.0.1',pt));s.close();return False\n"
+                    + " except:return True\n"
+                    + "def has_socket(pid):\n"
+                    + " try:\n"
+                    + "  for fd in os.listdir(f'/proc/{pid}/fd'):\n"
+                    + "   try:\n"
+                    + "    if 'socket:' in os.readlink(f'/proc/{pid}/fd/{fd}'):return True\n"
+                    + "   except:pass\n"
+                    + " except:pass\n"
+                    + " return False\n"
+                    + "def get_cmd(pid):\n"
+                    + " try:\n"
+                    + "  f=open(f'/proc/{pid}/cmdline')\n"
+                    + "  c=f.read().replace(chr(0),' ')\n"
+                    + "  f.close()\n"
+                    + "  return c\n"
+                    + " except:return ''\n"
+                    + "port_s=str(port)\n"
+                    + "candidates=[]\n"
+                    + "for d in os.listdir('/proc'):\n"
+                    + " if not d.isdigit():continue\n"
+                    + " pid=int(d)\n"
+                    + " if pid==my_pid or pid==my_ppid:continue\n"
+                    + " c=get_cmd(pid)\n"
+                    + " if not c:continue\n"
+                    + " # Skip the main claude binary itself (not its child shells)\n"
+                    + " if c.strip()=='claude' or c.startswith('claude '):continue\n"
+                    + " # Strategy 1: exact project path match (highest priority)\n"
+                    + " if path and path in c:\n"
+                    + "  candidates.insert(0,(pid,c,'path_match'))\n"
+                    + " # Strategy 2: port in cmdline (any format)\n"
+                    + " elif port_s in c:\n"
+                    + "  candidates.append((pid,c,'port_in_cmd'))\n"
+                    + " # Strategy 3: bash wrapper with projekty (from TermuxCommandRunner or Claude shell)\n"
+                    + " elif 'bash' in c and 'projekty' in c:\n"
+                    + "  candidates.append((pid,c,'bash_wrapper'))\n"
+                    + " # Strategy 4: process with socket fd under projekty\n"
+                    + " elif 'projekty' in c and has_socket(pid):\n"
+                    + "  candidates.append((pid,c,'socket_projekty'))\n"
+                    + "# Kill path-match candidates first\n"
+                    + "if path:\n"
+                    + " for cpid,ccmd,reason in candidates:\n"
+                    + "  if reason=='path_match':\n"
+                    + "   pids=tree(cpid)\n"
+                    + "   kill_tree(pids)\n"
+                    + "   print(f'killed {reason} {cpid}: {pids}')\n"
+                    + " time.sleep(0.5)\n"
+                    + " if port_free(port):\n"
+                    + "  print(f'port {port} freed');sys.exit(0)\n"
+                    + "# Kill remaining candidates one by one, check port after each\n"
+                    + "for cpid,ccmd,reason in candidates:\n"
+                    + " if reason=='path_match':continue\n"
+                    + " pids=tree(cpid)\n"
+                    + " kill_tree(pids)\n"
+                    + " print(f'killed {reason} {cpid}: {pids}')\n"
+                    + " time.sleep(0.5)\n"
+                    + " if port_free(port):\n"
+                    + "  print(f'port {port} freed');sys.exit(0)\n"
+                    + "print('done')\n";
+                String b64 = android.util.Base64.encodeToString(
+                    pyScript.getBytes(), android.util.Base64.NO_WRAP);
+                cmd.append("echo '").append(b64).append("' | base64 -d | python3 - ")
+                   .append(port);
+                if (projectPath != null && !projectPath.isEmpty()) {
+                    cmd.append(" '").append(projectPath).append("'");
+                }
+                cmd.append(" 2>/dev/null; ");
+
+                // Fallback: pkill patterns (works when port is in cmdline)
                 cmd.append("pkill -f ' ").append(port).append("$' 2>/dev/null; ");
                 cmd.append("pkill -f ' ").append(port).append(" ' 2>/dev/null; ");
                 cmd.append("pkill -f ':").append(port).append("' 2>/dev/null; ");
                 cmd.append("pkill -f '=").append(port).append("' 2>/dev/null; ");
+                cmd.append("pkill -f -- '--port=").append(port).append("' 2>/dev/null; ");
                 if (projectPath != null && !projectPath.isEmpty()) {
                     cmd.append("pkill -f '").append(projectPath).append("' 2>/dev/null; ");
                 }
-                cmd.append("fuser -k ").append(port).append("/tcp 2>/dev/null; ");
+
+                // Kill the logreader for this port
+                int logPort = Math.min(port + 10000, 65530);
+                cmd.append("pkill -f 'logreader.py.*").append(logPort).append("' 2>/dev/null; ");
             }
             cmd.append("echo DONE");
 
