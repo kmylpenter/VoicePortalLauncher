@@ -171,24 +171,24 @@ public class ServerLauncher {
                 String logFile = LOG_DIR + "/" + app.id + ".log";
                 int logPort = getLogPort();
 
-                // Pre-flight: if dev server already responding, skip launch
-                if (isPortResponding(app.port)) {
-                    callback.onLog("Server already running on port " + app.port);
-                    boolean proxyOk = !needsProxy || isPortResponding(PROXY_PORT);
-                    if (proxyOk) {
-                        callback.onServersReady();
-                        startIdleWatchdog();
+                // Always kill old server first (KIOSK_MODE may have changed)
+                if (isPortInUse(app.port)) {
+                    callback.onLog("Killing old server on port " + app.port + "...");
+                    stopServers(context, app.port);
+                    // Wait up to 5s for port to free
+                    for (int waitMs = 0; waitMs < 5000; waitMs += 500) {
+                        Thread.sleep(500);
+                        if (cancelled) return;
+                        if (!isPortInUse(app.port)) break;
+                    }
+                    if (isPortInUse(app.port)) {
+                        callback.onError("Port " + app.port +
+                            " still in use after kill attempt.\n\n" +
+                            "Kill manually in Termux:\n" +
+                            "  fuser -k " + app.port + "/tcp");
                         return;
                     }
-                }
-
-                // Pre-flight: port bound by non-HTTP process
-                if (isPortInUse(app.port)) {
-                    callback.onError("Port " + app.port +
-                        " is in use by another process (not HTTP).\n\n" +
-                        "Change the port in launcher config,\nor kill the process:\n" +
-                        "  fuser -k " + app.port + "/tcp");
-                    return;
+                    callback.onLog("Port " + app.port + " freed");
                 }
 
                 // Setup log capture: create dir, write log reader script, clear log
