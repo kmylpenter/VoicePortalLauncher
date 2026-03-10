@@ -88,7 +88,6 @@ public class WebViewActivity extends Activity {
         kioskMode = SettingsActivity.getKioskMode(this);
         if (kioskMode) {
             startLockTask();
-            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             enterImmersiveMode();
         }
 
