@@ -5,6 +5,8 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.webkit.ValueCallback;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.media.AudioManager;
@@ -34,6 +36,7 @@ import java.util.ArrayList;
 public class WebViewActivity extends Activity {
     private static final String TAG = "VPWebView";
     private static final int MIC_PERMISSION_CODE = 1;
+    private static final int FILE_CHOOSER_CODE = 2;
 
     private FrameLayout webviewContainer;
     private HorizontalScrollView tabStrip;
@@ -42,6 +45,7 @@ public class WebViewActivity extends Activity {
     private ArrayList<TabInfo> tabs;
     private int activeTabIndex;
     private PermissionRequest pendingPermissionRequest;
+    private ValueCallback<Uri[]> fileUploadCallback;
     private boolean micPermissionGranted;
     private boolean desktopMode = false;
     private boolean kioskMode = false;
@@ -129,6 +133,24 @@ public class WebViewActivity extends Activity {
             }
             if (tabs.isEmpty()) {
                 addTabFromIntent(getIntent());
+            }
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == FILE_CHOOSER_CODE) {
+            if (fileUploadCallback != null) {
+                Uri[] results = null;
+                if (resultCode == Activity.RESULT_OK && data != null) {
+                    String dataString = data.getDataString();
+                    if (dataString != null) {
+                        results = new Uri[]{Uri.parse(dataString)};
+                    }
+                }
+                fileUploadCallback.onReceiveValue(results);
+                fileUploadCallback = null;
             }
         }
     }
@@ -549,6 +571,34 @@ public class WebViewActivity extends Activity {
             if (pendingPermissionRequest == request) {
                 pendingPermissionRequest = null;
             }
+        }
+
+        @Override
+        public boolean onShowFileChooser(WebView webView,
+                ValueCallback<Uri[]> callback,
+                FileChooserParams params) {
+            Log.d(TAG, "onShowFileChooser triggered");
+            if (fileUploadCallback != null) {
+                fileUploadCallback.onReceiveValue(null);
+            }
+            fileUploadCallback = callback;
+            Intent intent = params.createIntent();
+            try {
+                startActivityForResult(intent, FILE_CHOOSER_CODE);
+            } catch (Exception e) {
+                Log.e(TAG, "File chooser failed, trying fallback", e);
+                Intent fallback = new Intent(Intent.ACTION_GET_CONTENT);
+                fallback.addCategory(Intent.CATEGORY_OPENABLE);
+                fallback.setType("image/*");
+                try {
+                    startActivityForResult(fallback, FILE_CHOOSER_CODE);
+                } catch (Exception e2) {
+                    Log.e(TAG, "Fallback file chooser also failed", e2);
+                    fileUploadCallback.onReceiveValue(null);
+                    fileUploadCallback = null;
+                }
+            }
+            return true;
         }
 
         @Override

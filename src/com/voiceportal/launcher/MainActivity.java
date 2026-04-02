@@ -13,6 +13,9 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.CheckBox;
 import android.widget.Toast;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.ArrayList;
 import java.util.List;
 
 public class MainActivity extends Activity
@@ -23,6 +26,7 @@ public class MainActivity extends Activity
     private AppListAdapter adapter;
     private ListView listView;
     private TextView emptyView;
+    private volatile boolean autoReconnecting = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,6 +38,7 @@ public class MainActivity extends Activity
         findViewById(R.id.add_button).setOnClickListener(this);
         findViewById(R.id.monitor_button).setOnClickListener(this);
         findViewById(R.id.settings_button).setOnClickListener(this);
+        findViewById(R.id.update_button).setOnClickListener(this);
 
         loadApps();
     }
@@ -42,6 +47,17 @@ public class MainActivity extends Activity
     protected void onResume() {
         super.onResume();
         loadApps();
+        autoReconnecting = false;
+
+        if (SettingsActivity.getKioskMode(this)) {
+            checkAutoReconnect();
+        }
+    }
+
+    private void checkAutoReconnect() {
+        if (autoReconnecting || apps == null || apps.isEmpty()) return;
+        autoReconnecting = true;
+        new Thread(new AutoReconnectCheckRunnable(new ArrayList<AppConfig>(apps))).start();
     }
 
     @Override
@@ -52,6 +68,25 @@ public class MainActivity extends Activity
             startActivity(new Intent(this, ServerMonitorActivity.class));
         } else if (v.getId() == R.id.settings_button) {
             startActivity(new Intent(this, SettingsActivity.class));
+        } else if (v.getId() == R.id.update_button) {
+            installUpdate();
+        }
+    }
+
+    private void installUpdate() {
+        String apkPath = "/data/data/com.termux/files/home/projekty/VoicePortalLauncher/build/voiceportal.apk";
+        String dest = "/sdcard/Download/voiceportal-update.apk";
+        String cmd = "if [ -f " + apkPath + " ]; then " +
+            "cp " + apkPath + " " + dest + " && sleep 1 && " +
+            "am start -a android.intent.action.VIEW " +
+            "-t application/vnd.android.package-archive " +
+            "-d file://" + dest + "; " +
+            "else echo 'APK not found: " + apkPath + "'; fi";
+        String err = TermuxCommandRunner.runInBackground(this, cmd, null);
+        if (err != null) {
+            Toast.makeText(this, "Error: " + err, Toast.LENGTH_LONG).show();
+        } else {
+            Toast.makeText(this, "Installing update...", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -257,6 +292,51 @@ public class MainActivity extends Activity
             apps.remove(position);
             AppConfig.saveAll(MainActivity.this, apps);
             loadApps();
+        }
+    }
+
+    /** Background thread: check if any configured app's server is already running */
+    private class AutoReconnectCheckRunnable implements Runnable {
+        private final List<AppConfig> appList;
+        AutoReconnectCheckRunnable(List<AppConfig> appList) { this.appList = appList; }
+
+        @Override
+        public void run() {
+            for (int i = 0; i < appList.size(); i++) {
+                AppConfig app = appList.get(i);
+                try {
+                    URL url = new URL("http://127.0.0.1:" + app.port);
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setConnectTimeout(1000);
+                    conn.setReadTimeout(1000);
+                    conn.setRequestMethod("GET");
+                    int code = conn.getResponseCode();
+                    conn.disconnect();
+                    if (code >= 200 && code < 500) {
+                        runOnUiThread(new AutoReconnectRunnable(app));
+                        return;
+                    }
+                } catch (Exception e) {
+                    // Port not responding, try next app
+                }
+            }
+        }
+    }
+
+    /** UI thread: reopen WebViewActivity for a running server */
+    private class AutoReconnectRunnable implements Runnable {
+        private final AppConfig app;
+        AutoReconnectRunnable(AppConfig app) { this.app = app; }
+
+        @Override
+        public void run() {
+            Toast.makeText(MainActivity.this,
+                "Reconnecting to " + app.name + "...", Toast.LENGTH_SHORT).show();
+            Intent intent = new Intent(MainActivity.this, WebViewActivity.class);
+            intent.putExtra("url", "http://127.0.0.1:" + app.port);
+            intent.putExtra("app_name", app.name);
+            intent.putExtra("app_port", app.port);
+            startActivity(intent);
         }
     }
 }

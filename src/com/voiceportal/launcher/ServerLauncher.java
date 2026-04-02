@@ -171,6 +171,17 @@ public class ServerLauncher {
                 String logFile = LOG_DIR + "/" + app.id + ".log";
                 int logPort = getLogPort();
 
+                // Quick reconnect: if server already responding, skip kill/restart
+                if (isPortResponding(app.port)) {
+                    boolean proxyOk = !needsProxy || isPortResponding(PROXY_PORT);
+                    if (proxyOk) {
+                        callback.onLog("Server on port " + app.port + " already running");
+                        callback.onServersReady();
+                        startIdleWatchdog();
+                        return;
+                    }
+                }
+
                 // Always kill old server first (KIOSK_MODE may have changed)
                 if (isPortInUse(app.port)) {
                     callback.onLog("Killing old server on port " + app.port + "...");
