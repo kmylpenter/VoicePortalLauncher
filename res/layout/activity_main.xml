@@ -34,7 +34,7 @@
                 android:layout_width="44dp"
                 android:layout_height="44dp"
                 android:backgroundTint="@color/bg_card"
-                android:text="U"
+                android:text="★"
                 android:textSize="18sp"
                 android:textColor="@color/accent_light"
                 android:stateListAnimator="@null"

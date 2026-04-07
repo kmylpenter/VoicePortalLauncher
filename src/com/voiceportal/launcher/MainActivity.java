@@ -4,7 +4,11 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
+import android.os.StrictMode;
+import android.provider.Settings;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.AdapterView;
@@ -13,6 +17,7 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.CheckBox;
 import android.widget.Toast;
+import java.io.File;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
@@ -74,20 +79,29 @@ public class MainActivity extends Activity
     }
 
     private void installUpdate() {
-        String apkPath = "/data/data/com.termux/files/home/projekty/VoicePortalLauncher/build/voiceportal.apk";
-        String dest = "/sdcard/Download/voiceportal-update.apk";
-        String cmd = "if [ -f " + apkPath + " ]; then " +
-            "cp " + apkPath + " " + dest + " && sleep 1 && " +
-            "am start -a android.intent.action.VIEW " +
-            "-t application/vnd.android.package-archive " +
-            "-d file://" + dest + "; " +
-            "else echo 'APK not found: " + apkPath + "'; fi";
+        if (!Environment.isExternalStorageManager()) {
+            Toast.makeText(this, "Grant 'All files access' first", Toast.LENGTH_LONG).show();
+            startActivity(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                Uri.parse("package:" + getPackageName())));
+            return;
+        }
+        if (!getPackageManager().canRequestPackageInstalls()) {
+            Toast.makeText(this, "Enable 'Install unknown apps' for VoicePortal", Toast.LENGTH_LONG).show();
+            startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:" + getPackageName())));
+            return;
+        }
+
+        String apkSrc = "/data/data/com.termux/files/home/projekty/VoicePortalLauncher/build/voiceportal.apk";
+        String apkDest = "/sdcard/Download/voiceportal-update.apk";
+        String cmd = "cp " + apkSrc + " " + apkDest;
         String err = TermuxCommandRunner.runInBackground(this, cmd, null);
         if (err != null) {
             Toast.makeText(this, "Error: " + err, Toast.LENGTH_LONG).show();
-        } else {
-            Toast.makeText(this, "Installing update...", Toast.LENGTH_SHORT).show();
+            return;
         }
+        Toast.makeText(this, "Preparing update...", Toast.LENGTH_SHORT).show();
+        new Thread(new InstallApkRunnable()).start();
     }
 
     private void loadApps() {
@@ -292,6 +306,56 @@ public class MainActivity extends Activity
             apps.remove(position);
             AppConfig.saveAll(MainActivity.this, apps);
             loadApps();
+        }
+    }
+
+    /** Background thread: wait for copy, then open APK with system installer */
+    private class InstallApkRunnable implements Runnable {
+        @Override
+        public void run() {
+            try {
+                Thread.sleep(2500);
+            } catch (InterruptedException e) {
+                return;
+            }
+
+            File apk = new File("/sdcard/Download/voiceportal-update.apk");
+            if (!apk.exists() || !apk.canRead()) {
+                runOnUiThread(new ToastRunnable("APK not found at " + apk.getPath()));
+                return;
+            }
+
+            runOnUiThread(new OpenInstallerRunnable(apk));
+        }
+    }
+
+    /** UI thread: open system package installer for APK file */
+    private class OpenInstallerRunnable implements Runnable {
+        private final File apk;
+        OpenInstallerRunnable(File apk) { this.apk = apk; }
+        @Override
+        public void run() {
+            StrictMode.VmPolicy.Builder builder = new StrictMode.VmPolicy.Builder();
+            StrictMode.setVmPolicy(builder.build());
+
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setDataAndType(Uri.fromFile(apk), "application/vnd.android.package-archive");
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            try {
+                startActivity(intent);
+            } catch (Exception e) {
+                Toast.makeText(MainActivity.this, "Cannot open installer: " + e.getMessage(),
+                    Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
+    private class ToastRunnable implements Runnable {
+        private final String message;
+        ToastRunnable(String message) { this.message = message; }
+        @Override
+        public void run() {
+            Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
         }
     }
 
