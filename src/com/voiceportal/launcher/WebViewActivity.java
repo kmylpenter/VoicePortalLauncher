@@ -3,6 +3,7 @@ package com.voiceportal.launcher;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -336,6 +337,22 @@ public class WebViewActivity extends Activity {
         }
     }
 
+    private void showExitKioskDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK);
+        builder.setTitle("Exit to main screen?");
+        builder.setPositiveButton("Exit", new ExitKioskClickListener());
+        builder.setNegativeButton("Cancel", null);
+        builder.show();
+    }
+
+    private class ExitKioskClickListener implements DialogInterface.OnClickListener {
+        @Override
+        public void onClick(DialogInterface dialog, int which) {
+            try { stopLockTask(); } catch (Exception e) { /* ignore */ }
+            goToMainActivity();
+        }
+    }
+
     private void goToMainActivity() {
         Intent homeIntent = new Intent(this, MainActivity.class);
         homeIntent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
@@ -369,13 +386,15 @@ public class WebViewActivity extends Activity {
     @Override
     public void onBackPressed() {
         if (kioskMode) {
-            // In kiosk mode, only allow in-page back navigation
             if (activeTabIndex >= 0 && activeTabIndex < tabs.size()) {
                 WebView active = tabs.get(activeTabIndex).webView;
                 if (active.canGoBack()) {
                     active.goBack();
+                    return;
                 }
             }
+            // No more in-page history - offer exit to main screen
+            showExitKioskDialog();
             return;
         }
         if (activeTabIndex >= 0 && activeTabIndex < tabs.size()) {

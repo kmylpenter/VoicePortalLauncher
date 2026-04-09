@@ -27,6 +27,8 @@ public class MainActivity extends Activity
         implements AdapterView.OnItemClickListener, AdapterView.OnItemLongClickListener,
                    View.OnClickListener {
 
+    private static boolean coldStartReconnectDone = false;
+
     private List<AppConfig> apps;
     private AppListAdapter adapter;
     private ListView listView;
@@ -46,17 +48,18 @@ public class MainActivity extends Activity
         findViewById(R.id.update_button).setOnClickListener(this);
 
         loadApps();
+
+        // Auto-reconnect only once on cold start (process was killed)
+        if (!coldStartReconnectDone && SettingsActivity.getKioskMode(this)) {
+            coldStartReconnectDone = true;
+            checkAutoReconnect();
+        }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         loadApps();
-        autoReconnecting = false;
-
-        if (SettingsActivity.getKioskMode(this)) {
-            checkAutoReconnect();
-        }
     }
 
     private void checkAutoReconnect() {
